@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stock Photo Counter</title>
+<style>
+:root{
+  --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--border:#dbe3ee;
+  --blue:#1565c0;--blue2:#0d47a1;--green:#18864b;--red:#c62828;--soft:#eef4fb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--text)}
+.app{max-width:920px;margin:auto;padding:14px 12px 42px}
+.hero{background:linear-gradient(135deg,#0d47a1,#1976d2);color:#fff;padding:20px;border-radius:18px;margin-bottom:14px}
+.hero h1{margin:0 0 6px;font-size:22px}.hero p{margin:0;font-size:13px;opacity:.92}
+.card{background:#fff;border:1px solid var(--border);border-radius:18px;padding:15px;margin-bottom:14px;box-shadow:0 5px 18px rgba(20,35,60,.05)}
+h2{font-size:17px;margin:0 0 13px}
+.camera{background:#0c1118;border:1px dashed #aab8ca;border-radius:15px;min-height:230px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+video,.preview{display:block;width:100%;max-height:480px;object-fit:contain}
+.placeholder{color:#cbd5e1;text-align:center;padding:28px}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:11px}
+button,.filebtn{border:0;border-radius:12px;min-height:46px;padding:11px 13px;font-size:15px;font-weight:700;cursor:pointer;flex:1;text-align:center;display:flex;align-items:center;justify-content:center}
+button:disabled{opacity:.48;cursor:not-allowed}
+.primary{background:var(--blue);color:white}.secondary{background:#e8f0fa;color:#174a82}.success{background:#e8f7ef;color:var(--green)}.danger{background:#fdecec;color:var(--red)}
+label.field{display:block;font-size:13px;font-weight:700;margin:11px 0 6px}
+input,textarea{width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;font-size:16px;background:#fff;color:var(--text)}
+textarea{min-height:70px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 115px;gap:9px}
+.grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
+.status{font-size:12px;color:var(--muted);line-height:1.45;margin-top:9px}.status.ok{color:var(--green)}.status.err{color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{text-align:center;border:1px solid var(--border);background:#f9fbfd;border-radius:13px;padding:11px}.stat span{font-size:11px;color:var(--muted)}.stat b{display:block;font-size:22px;margin-top:3px}
+.list{display:grid;gap:10px;margin-top:13px}
+.item{border:1px solid var(--border);border-radius:14px;padding:10px;display:grid;grid-template-columns:92px 1fr;gap:10px}
+.item img{width:92px;height:92px;border-radius:10px;object-fit:cover;background:#eee}.item h3{margin:1px 0 5px;font-size:14px}.meta{font-size:12px;color:var(--muted);line-height:1.5}.qty{font-weight:800;color:var(--blue)}
+.empty{text-align:center;color:var(--muted);padding:20px}.notice{background:#fff7e8;border:1px solid #ffe0a3;color:#765619;border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:14px}
+.busy{display:none;margin-top:10px;font-size:12px;color:var(--blue)}.busy.show{display:block}
+canvas{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="hero">
+    <h1>📦 Stock Photo Counter</h1>
+    <p>Foto + watermark GPS + nama barang + qty + penyimpanan Netlify Blobs</p>
+  </section>
+
+  <div class="notice">
+    Data tersimpan online di <b>Netlify Blobs</b>. Kamera dan GPS harus diizinkan di browser. Gunakan URL <b>https://</b>.
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1. Foto & Lokasi</h2>
+      <div class="camera">
+        <div class="placeholder" id="ph">Tekan <b>Buka Kamera Live</b> atau gunakan kamera HP.</div>
+        <video id="video" autoplay playsinline hidden></video>
+        <img id="preview" class="preview" alt="Preview foto" hidden>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="openCamera" type="button">📷 Buka Kamera Live</button>
+        <button class="success" id="takePhoto" type="button" disabled>📸 Ambil Foto</button>
+        <button class="secondary" id="switchCamera" type="button" disabled>🔄 Ganti Kamera</button>
+      </div>
+
+      <div class="actions">
+        <label class="filebtn secondary" for="cameraFile">📱 Ambil Foto dari Kamera HP</label>
+        <input id="cameraFile" type="file" accept="image/*" capture="environment" hidden>
+      </div>
+
+      <div class="status" id="cameraStatus">Kamera belum aktif.</div>
+
+      <label class="field" for="locationName">Nama lokasi (opsional)</label>
+      <input id="locationName" placeholder="Contoh: Gudang A / Lorong 3">
+
+      <div class="actions">
+        <button class="secondary" id="getLocation" type="button">📍 Ambil GPS</button>
+      </div>
+      <div class="status" id="locationStatus">GPS belum diambil.</div>
+    </section>
+
+    <section class="card">
+      <h2>2. Data Barang</h2>
+      <label class="field" for="itemName">Nama Barang</label>
+      <input id="itemName" placeholder="Contoh: Minyak Goreng 2L">
+
+      <div class="row">
+        <div>
+          <label class="field" for="qty">Qty</label>
+          <input id="qty" type="number" min="1" step="1" inputmode="numeric" value="1">
+        </div>
+        <div>
+          <label class="field" for="unit">Satuan</label>
+          <input id="unit" value="pcs">
+        </div>
+      </div>
+
+      <label class="field" for="notes">Catatan</label>
+      <textarea id="notes" placeholder="Opsional"></textarea>
+
+      <div class="actions">
+        <button class="primary" id="saveItem" type="button">☁️ Simpan ke Netlify</button>
+        <button class="secondary" id="resetForm" type="button">↺ Reset</button>
+      </div>
+
+      <div class="busy" id="busy">Sedang mengunggah foto dan data…</div>
+      <div class="status" id="formStatus">Lengkapi nama, qty, foto, dan sebaiknya GPS.</div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>3. Rekap Tersimpan</h2>
+    <div class="stats">
+      <div class="stat"><span>Total Jenis</span><b id="totalTypes">0</b></div>
+      <div class="stat"><span>Total Qty</span><b id="totalQty">0</b></div>
+      <div class="stat"><span>Total Foto</span><b id="totalPhotos">0</b></div>
+    </div>
+
+    <div class="actions">
+      <button class="secondary" id="refreshData" type="button">🔄 Refresh Data</button>
+      <button class="success" id="exportCsv" type="button">⬇ Export CSV</button>
+    </div>
+
+    <div id="itemsList" class="list"><div class="empty">Memuat data…</div></div>
+  </section>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const video = $('video'), preview = $('preview'), canvas = $('canvas'), ctx = canvas.getContext('2d');
+
+  let stream = null;
+  let facingMode = 'environment';
+  let photoBlob = null;
+  let currentLocation = null;
+  let items = [];
+
+  const pad = n => String(n).padStart(2,'0');
+  const formatDate = (d=new Date()) => `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
+  function status(el,msg,type=''){ el.textContent=msg; el.className='status'+(type?' '+type:''); }
+  function setBusy(on){ $('busy').classList.toggle('show',on); $('saveItem').disabled=on; }
+
+  async function stopCamera(){
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  }
+
+  async function startCamera(){
+    try{
+      await stopCamera();
+      if(!window.isSecureContext) throw new Error('Halaman harus dibuka melalui HTTPS.');
+      if(!navigator.mediaDevices?.getUserMedia) throw new Error('Kamera live tidak didukung. Gunakan Kamera HP.');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:{ideal:facingMode},width:{ideal:1920},height:{ideal:1080}}, audio:false
+      });
+      video.srcObject=stream;
+      video.hidden=false; preview.hidden=true; $('ph').hidden=true;
+      $('takePhoto').disabled=false; $('switchCamera').disabled=false;
+      status($('cameraStatus'),'Kamera aktif.','ok');
+    }catch(e){ status($('cameraStatus'),'Kamera gagal: '+e.message,'err'); }
+  }
+
+  function locationText(){
+    const manual=$('locationName').value.trim();
+    if(currentLocation){
+      const gps=`GPS ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)} (±${Math.round(currentLocation.accuracy)} m)`;
+      return manual ? `${manual} | ${gps}` : gps;
+    }
+    return manual || 'Lokasi tidak tersedia';
+  }
+
+  function wrapText(text,x,y,maxWidth,lineHeight){
+    const words=text.split(' '); let line=''; let row=0;
+    for(const word of words){
+      const test=line+word+' ';
+      if(ctx.measureText(test).width>maxWidth && line){
+        ctx.fillText(line.trim(),x,y+row*lineHeight); row++; line=word+' ';
+      }else line=test;
+    }
+    if(line) ctx.fillText(line.trim(),x,y+row*lineHeight);
+    return row+1;
+  }
+
+  async function watermark(source,w,h){
+    const maxW=1280;
+    const scale=Math.min(1,maxW/w);
+    canvas.width=Math.round(w*scale); canvas.height=Math.round(h*scale);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(source,0,0,canvas.width,canvas.height);
+
+    const margin=Math.max(16,Math.round(canvas.width*.016));
+    const fontSize=Math.max(20,Math.round(canvas.width*.022));
+    const lh=Math.round(fontSize*1.3);
+    const t1='Tanggal: '+formatDate();
+    const t2='Lokasi: '+locationText();
+    ctx.font=`700 ${fontSize}px Arial`; ctx.textBaseline='top';
+
+    const maxText=canvas.width-margin*2;
+    const approxLines=Math.max(1,Math.ceil(ctx.measureText(t2).width/maxText));
+    const boxH=margin + lh*(1+approxLines);
+    ctx.fillStyle='rgba(0,0,0,.68)';
+    ctx.fillRect(0,canvas.height-boxH,canvas.width,boxH);
+    ctx.fillStyle='#fff';
+    const y=canvas.height-boxH+margin/2;
+    ctx.fillText(t1,margin,y);
+    wrapText(t2,margin,y+lh,maxText,lh);
+
+    photoBlob = await new Promise(resolve => canvas.toBlob(resolve,'image/jpeg',0.78));
+    if(!photoBlob) throw new Error('Gagal membuat file foto.');
+    if(photoBlob.size > 4_000_000) throw new Error('Foto masih terlalu besar. Silakan ambil ulang dengan resolusi lebih rendah.');
+
+    const old = preview.dataset.url;
+    if(old) URL.revokeObjectURL(old);
+    const url=URL.createObjectURL(photoBlob);
+    preview.dataset.url=url; preview.src=url;
+    preview.hidden=false; video.hidden=true; $('ph').hidden=true;
+    status($('cameraStatus'),`Foto siap diupload (${(photoBlob.size/1024/1024).toFixed(2)} MB).`,'ok');
+  }
+
+  async function capture(){
+    try{
+      if(!stream || !video.videoWidth) throw new Error('Kamera belum siap.');
+      await watermark(video,video.videoWidth,video.videoHeight);
+    }catch(e){ status($('cameraStatus'),e.message,'err'); }
+  }
+
+  function loadFile(file){
+    if(!file) return;
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=async()=>{ try{ await watermark(img,img.naturalWidth,img.naturalHeight); }catch(e){ status($('cameraStatus'),e.message,'err'); } finally{URL.revokeObjectURL(url);} };
+    img.onerror=()=>{URL.revokeObjectURL(url);status($('cameraStatus'),'Foto tidak dapat dibaca.','err');};
+    img.src=url;
+  }
+
+  function getGPS(){
+    if(!window.isSecureContext){ status($('locationStatus'),'GPS membutuhkan HTTPS.','err'); return; }
+    if(!navigator.geolocation){ status($('locationStatus'),'GPS tidak tersedia di browser ini.','err'); return; }
+    status($('locationStatus'),'Mengambil GPS…');
+    navigator.geolocation.getCurrentPosition(
+      p=>{
+        currentLocation={lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy};
+        status($('locationStatus'),`GPS berhasil: ${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)} • ±${Math.round(currentLocation.accuracy)} m`,'ok');
+      },
+      e=>{
+        const msg=e.code===1?'Izin lokasi ditolak. Izinkan Location untuk situs ini.':e.code===2?'Lokasi tidak tersedia. Aktifkan GPS HP.':'GPS timeout. Coba lagi.';
+        status($('locationStatus'),msg,'err');
+      },
+      {enableHighAccuracy:true,timeout:20000,maximumAge:0}
+    );
+  }
+
+  function resetForm(){
+    $('itemName').value=''; $('qty').value='1'; $('unit').value='pcs'; $('notes').value='';
+    photoBlob=null;
+    const old=preview.dataset.url;if(old){URL.revokeObjectURL(old);delete preview.dataset.url;}
+    preview.src=''; preview.hidden=true;
+    if(stream) video.hidden=false; else $('ph').hidden=false;
+  }
+
+  async function saveItem(){
+    const name=$('itemName').value.trim();
+    const qty=parseInt($('qty').value,10);
+    const unit=$('unit').value.trim()||'pcs';
+    const notes=$('notes').value.trim();
+
+    if(!name){status($('formStatus'),'Nama barang wajib diisi.','err');return;}
+    if(!Number.isInteger(qty)||qty<1){status($('formStatus'),'Qty minimal 1.','err');return;}
+    if(!photoBlob){status($('formStatus'),'Ambil foto terlebih dahulu.','err');return;}
+
+    setBusy(true);
+    status($('formStatus'),'Mengupload…');
+    try{
+      const fd=new FormData();
+      fd.append('photo',photoBlob,'barang.jpg');
+      fd.append('name',name);
+      fd.append('qty',String(qty));
+      fd.append('unit',unit);
+      fd.append('notes',notes);
+      fd.append('location',locationText());
+      fd.append('lat',currentLocation?String(currentLocation.lat):'');
+      fd.append('lng',currentLocation?String(currentLocation.lng):'');
+      fd.append('accuracy',currentLocation?String(currentLocation.accuracy):'');
+
+      const r=await fetch('/api/items',{method:'POST',body:fd});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(data.error||`Upload gagal (${r.status})`);
+
+      status($('formStatus'),`Berhasil tersimpan: ${name} — ${qty} ${unit}.`,'ok');
+      resetForm();
+      await loadItems();
+    }catch(e){
+      status($('formStatus'),'Gagal simpan: '+e.message,'err');
+    }finally{setBusy(false);}
+  }
+
+  async function loadItems(){
+    const list=$('itemsList');
+    list.innerHTML='<div class="empty">Memuat data dari Netlify Blobs…</div>';
+    try{
+      const r=await fetch('/api/items',{cache:'no-store'});
+      const data=await r.json();
+      if(!r.ok) throw new Error(data.error||'Gagal mengambil data');
+      items=Array.isArray(data.items)?data.items:[];
+      render();
+    }catch(e){
+      list.innerHTML='<div class="empty">Gagal memuat data: '+escapeHtml(e.message)+'</div>';
+    }
+  }
+
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+
+  function render(){
+    $('totalTypes').textContent=items.length;
+    $('totalQty').textContent=items.reduce((a,b)=>a+(Number(b.qty)||0),0);
+    $('totalPhotos').textContent=items.length;
+
+    const list=$('itemsList');
+    if(!items.length){list.innerHTML='<div class="empty">Belum ada data tersimpan.</div>';return;}
+    list.innerHTML='';
+
+    items.forEach(item=>{
+      const el=document.createElement('div');el.className='item';
+
+      const img=document.createElement('img');
+      img.src=`/api/photo?id=${encodeURIComponent(item.id)}&v=${encodeURIComponent(item.createdAt||'')}`;
+      img.alt='Foto '+item.name; img.loading='lazy';
+
+      const info=document.createElement('div');
+      const h=document.createElement('h3');h.textContent=item.name;
+      const meta=document.createElement('div');meta.className='meta';
+
+      const q=document.createElement('div');q.innerHTML='Qty: <span class="qty"></span>';q.querySelector('.qty').textContent=`${item.qty} ${item.unit||'pcs'}`;
+      const t=document.createElement('div');t.textContent='🕒 '+(item.displayTime||item.createdAt||'-');
+      const l=document.createElement('div');l.textContent='📍 '+(item.location||'-');
+      meta.append(q,t,l);
+      if(item.notes){const n=document.createElement('div');n.textContent='📝 '+item.notes;meta.append(n);}
+
+      const acts=document.createElement('div');acts.className='actions';
+      const open=document.createElement('a');
+      open.href=`/api/photo?id=${encodeURIComponent(item.id)}`;open.target='_blank';open.rel='noopener';
+      open.className='filebtn secondary';open.textContent='🖼️ Buka Foto';
+      const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='🗑 Hapus';
+      del.addEventListener('click',()=>deleteItem(item));
+      acts.append(open,del);
+
+      info.append(h,meta,acts);el.append(img,info);list.append(el);
+    });
+  }
+
+  async function deleteItem(item){
+    if(!confirm(`Hapus ${item.name} beserta fotonya dari Netlify Blobs?`)) return;
+    try{
+      const r=await fetch('/api/items?id='+encodeURIComponent(item.id),{method:'DELETE'});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(data.error||'Gagal hapus');
+      await loadItems();
+    }catch(e){alert('Gagal menghapus: '+e.message);}
+  }
+
+  function csvEscape(v){return '"'+String(v??'').replace(/"/g,'""')+'"';}
+  function exportCSV(){
+    if(!items.length){alert('Belum ada data.');return;}
+    const rows=[['Tanggal','Nama Barang','Qty','Satuan','Lokasi','Latitude','Longitude','Catatan','Foto']];
+    [...items].reverse().forEach(x=>rows.push([
+      x.displayTime||x.createdAt,x.name,x.qty,x.unit,x.location,x.lat,x.lng,x.notes,
+      location.origin+'/api/photo?id='+encodeURIComponent(x.id)
+    ]));
+    const csv='\uFEFF'+rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');
+    a.href=url;a.download='rekap_barang_'+Date.now()+'.csv';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  $('openCamera').addEventListener('click',startCamera);
+  $('takePhoto').addEventListener('click',capture);
+  $('switchCamera').addEventListener('click',async()=>{facingMode=facingMode==='environment'?'user':'environment';await startCamera();});
+  $('cameraFile').addEventListener('change',e=>{loadFile(e.target.files?.[0]);e.target.value='';});
+  $('getLocation').addEventListener('click',getGPS);
+  $('saveItem').addEventListener('click',saveItem);
+  $('resetForm').addEventListener('click',resetForm);
+  $('refreshData').addEventListener('click',loadItems);
+  $('exportCsv').addEventListener('click',exportCSV);
+
+  loadItems();
+})();
+</script>
+</body>
+</html>
